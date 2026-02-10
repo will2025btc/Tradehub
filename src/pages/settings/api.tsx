@@ -199,9 +199,11 @@ export default function ApiSettings() {
               <input
                 type="text"
                 id="apiKey"
+                name="binance-api-key"
                 required
                 value={formData.apiKey}
                 onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="输入您的币安 API Key"
               />
@@ -214,9 +216,11 @@ export default function ApiSettings() {
               <input
                 type="password"
                 id="apiSecret"
+                name="binance-api-secret"
                 required
                 value={formData.apiSecret}
                 onChange={(e) => setFormData({ ...formData, apiSecret: e.target.value })}
+                autoComplete="new-password"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="输入您的币安 API Secret"
               />

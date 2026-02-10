@@ -41,8 +41,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 加密密码
     const hashedPassword = await hashPassword(password);
 
-    // 生成验证令牌
-    const verificationToken = crypto.randomBytes(32).toString('hex');
+    // 生成6位数字验证码
+    const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
 
     // 创建用户
     const user = await prisma.user.create({
@@ -55,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    // 发送验证邮件
+    // 尝试发送验证邮件（但不依赖它）
     try {
       await sendVerificationEmail({
         to: email,
@@ -63,16 +63,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     } catch (emailError) {
       console.error('发送验证邮件失败:', emailError);
-      // 即使邮件发送失败，用户也已创建，所以返回成功但提示用户
-      return res.status(201).json({
-        message: '注册成功，但验证邮件发送失败。请联系管理员。',
-        userId: user.id,
-      });
+      // 邮件发送失败也没关系，用户可以使用手动验证
     }
 
+    // 返回验证码给前端显示
     res.status(201).json({
-      message: '注册成功！请检查您的邮箱以验证账户。',
+      message: '注册成功！',
       userId: user.id,
+      verificationCode: verificationToken,
+      email: email,
     });
   } catch (error) {
     console.error('注册错误:', error);
