@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String            @id @default(uuid())
+  googleId        String?           @unique @map("google_id")
+  email           String            @unique
+  displayName     String?           @map("display_name")
+  image           String?
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  
+  apiConfigs      ApiConfig[]
+  positions       Position[]
+  trades          Trade[]
+  accountSnapshots AccountSnapshot[]
+
+  @@map("users")
+}
+
+model ApiConfig {
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  exchange           String    @default("binance")
+  apiKeyEncrypted    String    @map("api_key_encrypted")
+  apiSecretEncrypted String    @map("api_secret_encrypted")
+  isActive           Boolean   @default(true) @map("is_active")
+  lastSyncAt         DateTime? @map("last_sync_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_configs")
+}
+
+model Position {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  symbol         String
+  side           String    // 'LONG' or 'SHORT'
+  leverage       Int
+  status         String    // 'OPEN' or 'CLOSED'
+  openTime       DateTime  @map("open_time")
+  closeTime      DateTime? @map("close_time")
+  avgOpenPrice   Decimal   @map("avg_open_price") @db.Decimal(20, 8)
+  avgClosePrice  Decimal?  @map("avg_close_price") @db.Decimal(20, 8)
+  quantity       Decimal   @db.Decimal(20, 8)
+  maxQuantity    Decimal   @map("max_quantity") @db.Decimal(20, 8)
+  maxPositionValue Decimal @map("max_position_value") @db.Decimal(20, 8)
+  maxMargin      Decimal   @map("max_margin") @db.Decimal(20, 8)
+  realizedPnl    Decimal   @map("realized_pnl") @db.Decimal(20, 8)
+  fee            Decimal   @default(0) @db.Decimal(20, 8)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades Trade[]
+
+  @@index([userId, status])
+  @@index([symbol])
+  @@map("positions")
+}
+
+model Trade {
+  id              String   @id @default(uuid())
+  positionId      String?  @map("position_id")
+  userId          String   @map("user_id")
+  binanceOrderId  String   @unique @map("binance_order_id")
+  symbol          String
+  side            String   // 'BUY' or 'SELL'
+  positionSide    String   @map("position_side") // 'LONG' or 'SHORT'
+  orderType       String   @map("order_type") // 'LIMIT', 'MARKET', etc.
+  quantity        Decimal  @db.Decimal(20, 8)
+  price           Decimal  @db.Decimal(20, 8)
+  fee             Decimal  @db.Decimal(20, 8)
+  realizedPnl     Decimal  @default(0) @map("realized_pnl") @db.Decimal(20, 8)
+  time            DateTime
+  createdAt       DateTime @default(now()) @map("created_at")
+  
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  position Position? @relation(fields: [positionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, time])
+  @@index([symbol])
+  @@map("trades")
+}
+
+model AccountSnapshot {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  balance        Decimal  @db.Decimal(20, 8)
+  unrealizedPnl  Decimal  @map("unrealized_pnl") @db.Decimal(20, 8)
+  totalEquity    Decimal  @map("total_equity") @db.Decimal(20, 8)
+  snapshotTime   DateTime @map("snapshot_time")
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, snapshotTime])
+  @@index([userId, snapshotTime])
+  @@map("account_snapshots")
+}

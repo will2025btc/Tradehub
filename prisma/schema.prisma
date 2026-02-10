@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-1.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  password        String
+  displayName     String?           @map("display_name")
+  emailVerified   Boolean           @default(false) @map("email_verified")
+  verificationToken String?         @unique @map("verification_token")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  
+  apiConfigs      ApiConfig[]
+  positions       Position[]
+  trades          Trade[]
+  accountSnapshots AccountSnapshot[]
+
+  @@map("users")
+}
+
+model ApiConfig {
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  exchange           String    @default("binance")
+  apiKeyEncrypted    String    @map("api_key_encrypted")
+  apiSecretEncrypted String    @map("api_secret_encrypted")
+  isActive           Boolean   @default(true) @map("is_active")
+  lastSyncAt         DateTime? @map("last_sync_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_configs")
+}
+
+model Position {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  symbol         String
+  side           String    // 'LONG' or 'SHORT'
+  leverage       Int
+  status         String    // 'OPEN' or 'CLOSED'
+  openTime       DateTime  @map("open_time")
+  closeTime      DateTime? @map("close_time")
+  avgOpenPrice   Decimal   @map("avg_open_price")
+  avgClosePrice  Decimal?  @map("avg_close_price")
+  quantity       Decimal  
+  maxQuantity    Decimal   @map("max_quantity")
+  maxPositionValue Decimal @map("max_position_value")
+  maxMargin      Decimal   @map("max_margin")
+  realizedPnl    Decimal   @map("realized_pnl")
+  fee            Decimal   @default(0)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades Trade[]
+
+  @@index([userId, status])
+  @@index([symbol])
+  @@map("positions")
+}
+
+model Trade {
+  id              String   @id @default(uuid())
+  positionId      String?  @map("position_id")
+  userId          String   @map("user_id")
+  binanceOrderId  String   @unique @map("binance_order_id")
+  symbol          String
+  side            String   // 'BUY' or 'SELL'
+  positionSide    String   @map("position_side") // 'LONG' or 'SHORT'
+  orderType       String   @map("order_type") // 'LIMIT', 'MARKET', etc.
+  quantity        Decimal 
+  price           Decimal 
+  fee             Decimal 
+  realizedPnl     Decimal  @default(0) @map("realized_pnl")
+  time            DateTime
+  createdAt       DateTime @default(now()) @map("created_at")
+  
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  position Position? @relation(fields: [positionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, time])
+  @@index([symbol])
+  @@map("trades")
+}
+
+model AccountSnapshot {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  balance        Decimal 
+  unrealizedPnl  Decimal  @map("unrealized_pnl")
+  totalEquity    Decimal  @map("total_equity")
+  snapshotTime   DateTime @map("snapshot_time")
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, snapshotTime])
+  @@index([userId, snapshotTime])
+  @@map("account_snapshots")
+}
