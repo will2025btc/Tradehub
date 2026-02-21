@@ -94,6 +94,7 @@ export default function Home() {
             <nav className="flex gap-4">
               <Link href="/" className="text-blue-600 font-semibold">概览</Link>
               <Link href="/positions" className="text-gray-600 hover:text-gray-900">持仓</Link>
+              <Link href="/news" className="text-gray-600 hover:text-gray-900">快讯</Link>
               <Link href="/settings/api" className="text-gray-600 hover:text-gray-900">API设置</Link>
             </nav>
           </div>

@@ -91,6 +91,9 @@ export default function Positions() {
               <Link href="/positions" className="text-blue-600 font-semibold">
                 持仓
               </Link>
+              <Link href="/news" className="text-gray-600 hover:text-gray-900">
+                快讯
+              </Link>
               <Link href="/settings/api" className="text-gray-600 hover:text-gray-900">
                 API设置
               </Link>
