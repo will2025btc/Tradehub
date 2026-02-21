@@ -1,7 +1,8 @@
 import { useSession, signIn } from 'next-auth/react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import Link from 'next/link';
+import SyncStatusBar from '@/components/SyncStatusBar';
 
 interface Position {
   id: string;
@@ -20,8 +21,14 @@ interface Position {
 
 export default function Positions() {
   const { data: session, status } = useSession();
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'open' | 'closed'>('all');
   const [symbolFilter, setSymbolFilter] = useState('');
+
+  const handleSyncComplete = () => {
+    // 同步完成后刷新持仓数据
+    queryClient.invalidateQueries({ queryKey: ['positions'] });
+  };
 
   const { data: positions, isLoading } = useQuery<Position[]>({
     queryKey: ['positions', filter],
@@ -98,6 +105,9 @@ export default function Positions() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">持仓管理</h1>
           <p className="text-gray-600">查看和分析您的交易持仓</p>
         </div>
+
+        {/* 同步状态栏 */}
+        <SyncStatusBar onSyncComplete={handleSyncComplete} />
 
         {/* Filters */}
         <div className="bg-white p-4 rounded-lg shadow-sm mb-6">

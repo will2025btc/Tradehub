@@ -1,8 +1,9 @@
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useState } from 'react';
 import Link from 'next/link';
+import SyncStatusBar from '@/components/SyncStatusBar';
 
 interface AccountMetrics {
   accountAsset: number;
@@ -23,8 +24,14 @@ interface AssetSnapshot {
 
 export default function Home() {
   const { data: session, status } = useSession();
+  const queryClient = useQueryClient();
   const [timeRange, setTimeRange] = useState('all');
   const [activeTab, setActiveTab] = useState('returnRate');
+
+  const handleSyncComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['account-metrics'] });
+    queryClient.invalidateQueries({ queryKey: ['asset-snapshots'] });
+  };
 
   const { data: metrics, isLoading: metricsLoading } = useQuery<AccountMetrics>({
     queryKey: ['account-metrics'],
@@ -103,6 +110,9 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        {/* 同步状态栏 */}
+        <SyncStatusBar onSyncComplete={handleSyncComplete} />
+
         {/* Metrics Grid */}
         {metricsLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">

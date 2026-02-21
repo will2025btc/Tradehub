@@ -8,5 +8,11 @@
       "maxDuration": 60
     }
   },
-  "regions": ["hkg1"]
+  "regions": ["hkg1"],
+  "crons": [
+    {
+      "path": "/api/cron/sync-all",
+      "schedule": "0 * * * *"
+    }
+  ]
 }
