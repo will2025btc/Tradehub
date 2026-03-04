@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { BINANCE_API_CONCURRENCY, BINANCE_API_MAX_RETRIES } from '@/lib/constants';
 
 export interface BinanceOrder {
   orderId: number;
@@ -110,7 +111,7 @@ export class BinanceAPIClient {
       .digest('hex');
   }
 
-  private async makeRequest<T>(endpoint: string, params: Record<string, any> = {}): Promise<T> {
+  private async makeRequest<T>(endpoint: string, params: Record<string, string | number> = {}): Promise<T> {
     const timestamp = Date.now();
     const queryParams = {
       ...params,
@@ -128,7 +129,7 @@ export class BinanceAPIClient {
 
     // 发起请求
     const url = `${this.baseURL}${endpoint}?${finalQueryString}`;
-    
+
     const response = await fetch(url, {
       headers: {
         'X-MBX-APIKEY': this.apiKey,
@@ -144,6 +145,65 @@ export class BinanceAPIClient {
   }
 
   /**
+   * 带重试的请求包装器（指数退避）
+   */
+  private async fetchWithRetry<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = BINANCE_API_MAX_RETRIES,
+    context: string = ''
+  ): Promise<T> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const isRateLimit =
+          lastError.message.includes('429') ||
+          lastError.message.includes('-1015');
+
+        if (attempt < maxRetries) {
+          const baseDelay = isRateLimit ? 2000 : 500;
+          const delay = baseDelay * Math.pow(2, attempt);
+          console.warn(
+            `[Binance] Retry ${attempt + 1}/${maxRetries} for ${context}: ${lastError.message}. Waiting ${delay}ms`
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
+   * 并发限制的批量执行器
+   */
+  private async mapWithConcurrency<T, R>(
+    items: T[],
+    fn: (item: T) => Promise<R>,
+    concurrency: number = BINANCE_API_CONCURRENCY
+  ): Promise<R[]> {
+    const results: R[] = [];
+    let index = 0;
+
+    async function worker() {
+      while (index < items.length) {
+        const currentIndex = index++;
+        results[currentIndex] = await fn(items[currentIndex]);
+      }
+    }
+
+    const workers = Array.from(
+      { length: Math.min(concurrency, items.length) },
+      () => worker()
+    );
+    await Promise.all(workers);
+    return results;
+  }
+
+  /**
    * 获取账户信息
    */
   async getAccountInfo(): Promise<BinanceAccountInfo> {
@@ -151,7 +211,7 @@ export class BinanceAPIClient {
   }
 
   /**
-   * 获取当前持仓信息（重要！）
+   * 获取当前持仓信息
    */
   async getPositionRisk(): Promise<BinancePosition[]> {
     return this.makeRequest<BinancePosition[]>('/fapi/v2/positionRisk');
@@ -164,44 +224,56 @@ export class BinanceAPIClient {
    * @param endTime 结束时间戳
    */
   async getAllOrders(symbol: string, startTime?: number, endTime?: number): Promise<BinanceOrder[]> {
-    const params: Record<string, any> = { symbol };
+    const params: Record<string, string | number> = { symbol };
     if (startTime) params.startTime = startTime;
     if (endTime) params.endTime = endTime;
-    
+
     return this.makeRequest<BinanceOrder[]>('/fapi/v1/allOrders', params);
   }
 
   /**
-   * 获取所有交易对的订单（改进版）
+   * 获取所有交易对的订单（并发版，带重试）
    * @param days 过去多少天的数据
+   * @param concurrency 并发数
    */
-  async getAllOrdersForAllSymbols(days: number = 7): Promise<Map<string, BinanceOrder[]>> {
+  async getAllOrdersForAllSymbols(
+    days: number = 7,
+    concurrency: number = BINANCE_API_CONCURRENCY
+  ): Promise<Map<string, BinanceOrder[]>> {
     // 先获取当前持仓
     const positions = await this.getPositionRisk();
-    const symbols = new Set<string>();
-    
+    const symbols: string[] = [];
+
     // 从持仓中获取所有有过交易的交易对（包括已平仓的）
     positions.forEach(pos => {
-      // 只要有持仓金额或未实现盈亏，说明有过交易
       if (parseFloat(pos.positionAmt) !== 0 || parseFloat(pos.unRealizedProfit) !== 0) {
-        symbols.add(pos.symbol);
+        symbols.push(pos.symbol);
       }
     });
 
-    console.log(`Found ${symbols.size} symbols with positions:`, Array.from(symbols));
+    console.log(`Found ${symbols.length} symbols with positions:`, symbols);
 
     const startTime = Date.now() - (days * 24 * 60 * 60 * 1000);
     const ordersMap = new Map<string, BinanceOrder[]>();
 
-    for (const symbol of Array.from(symbols)) {
-      try {
-        const orders = await this.getAllOrders(symbol, startTime);
-        if (orders.length > 0) {
-          ordersMap.set(symbol, orders);
-          console.log(`${symbol}: ${orders.length} orders`);
-        }
-      } catch (error) {
-        console.error(`Error fetching orders for ${symbol}:`, error);
+    // 并发请求所有交易对的订单，带重试
+    const results = await this.mapWithConcurrency(
+      symbols,
+      async (symbol) => {
+        const orders = await this.fetchWithRetry(
+          () => this.getAllOrders(symbol, startTime),
+          BINANCE_API_MAX_RETRIES,
+          symbol
+        );
+        return { symbol, orders };
+      },
+      concurrency
+    );
+
+    for (const { symbol, orders } of results) {
+      if (orders.length > 0) {
+        ordersMap.set(symbol, orders);
+        console.log(`${symbol}: ${orders.length} orders`);
       }
     }
 
@@ -211,11 +283,11 @@ export class BinanceAPIClient {
   /**
    * 获取用户成交历史
    */
-  async getUserTrades(symbol: string, startTime?: number, endTime?: number): Promise<any[]> {
-    const params: Record<string, any> = { symbol };
+  async getUserTrades(symbol: string, startTime?: number, endTime?: number): Promise<BinanceOrder[]> {
+    const params: Record<string, string | number> = { symbol };
     if (startTime) params.startTime = startTime;
     if (endTime) params.endTime = endTime;
-    
-    return this.makeRequest<any[]>('/fapi/v1/userTrades', params);
+
+    return this.makeRequest<BinanceOrder[]>('/fapi/v1/userTrades', params);
   }
 }

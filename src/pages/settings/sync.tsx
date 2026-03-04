@@ -1,10 +1,12 @@
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import Layout from '@/components/Layout';
+import AuthGuard from '@/components/AuthGuard';
 
 export default function SyncData() {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -17,7 +19,6 @@ export default function SyncData() {
   // 从API配置页面跳转过来时自动开始同步
   useEffect(() => {
     if (session && router.query.auto === 'true') {
-      // 延迟1秒后自动开始同步，让用户看到页面
       setTimeout(() => {
         handleSync();
       }, 1000);
@@ -37,9 +38,9 @@ export default function SyncData() {
       const data = await res.json();
 
       if (res.ok) {
-        setMessage({ 
-          type: 'success', 
-          text: `同步成功！导入了 ${data.tradesCount || 0} 笔交易，${data.positionsCount || 0} 个持仓` 
+        setMessage({
+          type: 'success',
+          text: `同步成功！导入了 ${data.tradesCount || 0} 笔交易，${data.positionsCount || 0} 个持仓`
         });
         setSyncStatus({
           lastSync: new Date().toISOString(),
@@ -47,71 +48,24 @@ export default function SyncData() {
           totalPositions: data.positionsCount || 0,
         });
       } else {
-        setMessage({ 
-          type: 'error', 
-          text: data.message || '同步失败，请检查 API 配置' 
+        setMessage({
+          type: 'error',
+          text: data.message || '同步失败，请检查 API 配置'
         });
       }
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: '网络错误，请稍后重试' 
+      setMessage({
+        type: 'error',
+        text: '网络错误，请稍后重试'
       });
     } finally {
       setSyncing(false);
     }
   };
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    router.push('/auth/signin');
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="text-2xl font-bold text-gray-900 hover:text-blue-600">
-              Followin Tradehub
-            </Link>
-            <nav className="flex gap-4">
-              <Link href="/" className="text-gray-600 hover:text-gray-900">
-                概览
-              </Link>
-              <Link href="/positions" className="text-gray-600 hover:text-gray-900">
-                持仓
-              </Link>
-              <Link href="/settings/api" className="text-gray-600 hover:text-gray-900">
-                API设置
-              </Link>
-              <Link href="/settings/sync" className="text-blue-600 font-semibold">
-                数据同步
-              </Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">{session.user?.email}</span>
-            <button
-              onClick={() => signOut()}
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              退出
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <AuthGuard message="登录管理数据同步">
+      <Layout maxWidth="max-w-3xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">数据同步</h1>
           <p className="text-gray-600">手动同步您的币安交易数据</p>
@@ -162,8 +116,8 @@ export default function SyncData() {
         <div className="bg-white rounded-lg shadow-sm p-6">
           {message.text && (
             <div className={`p-4 rounded mb-6 ${
-              message.type === 'success' 
-                ? 'bg-green-50 border border-green-200 text-green-600' 
+              message.type === 'success'
+                ? 'bg-green-50 border border-green-200 text-green-600'
                 : 'bg-red-50 border border-red-200 text-red-600'
             }`}>
               {message.text}
@@ -171,17 +125,17 @@ export default function SyncData() {
           )}
 
           <div className="text-center py-8">
-            <svg 
+            <svg
               className={`mx-auto h-16 w-16 mb-4 ${syncing ? 'animate-spin text-blue-600' : 'text-gray-400'}`}
-              fill="none" 
-              stroke="currentColor" 
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
 
@@ -189,8 +143,8 @@ export default function SyncData() {
               {syncing ? '正在同步数据...' : '准备同步'}
             </h2>
             <p className="text-gray-600 mb-6">
-              {syncing 
-                ? '请稍候，正在从币安拉取您的交易数据' 
+              {syncing
+                ? '请稍候，正在从币安拉取您的交易数据'
                 : '点击下方按钮开始同步币安交易数据'
               }
             </p>
@@ -210,12 +164,12 @@ export default function SyncData() {
           <h2 className="text-lg font-semibold mb-4">同步说明</h2>
           <div className="space-y-4 text-sm text-gray-700">
             <div>
-              <h3 className="font-semibold mb-2">🔄 自动同步</h3>
+              <h3 className="font-semibold mb-2">自动同步</h3>
               <p>系统会每隔 5 分钟自动同步一次新数据（后台任务）</p>
             </div>
 
             <div>
-              <h3 className="font-semibold mb-2">📊 同步内容</h3>
+              <h3 className="font-semibold mb-2">同步内容</h3>
               <ul className="list-disc list-inside ml-4 space-y-1">
                 <li>账户余额历史</li>
                 <li>期货持仓记录</li>
@@ -226,7 +180,7 @@ export default function SyncData() {
             </div>
 
             <div>
-              <h3 className="font-semibold mb-2">⚠️ 注意事项</h3>
+              <h3 className="font-semibold mb-2">注意事项</h3>
               <ul className="list-disc list-inside ml-4 space-y-1">
                 <li>首次同步可能需要较长时间</li>
                 <li>如果数据量很大，建议分批同步</li>
@@ -236,24 +190,15 @@ export default function SyncData() {
             </div>
 
             <div>
-              <h3 className="font-semibold mb-2">🔗 快速链接</h3>
+              <h3 className="font-semibold mb-2">快速链接</h3>
               <div className="flex gap-4 mt-2">
-                <Link 
-                  href="/settings/api" 
-                  className="text-blue-600 hover:underline"
-                >
+                <Link href="/settings/api" className="text-blue-600 hover:underline">
                   → 配置 API 密钥
                 </Link>
-                <Link 
-                  href="/positions" 
-                  className="text-blue-600 hover:underline"
-                >
+                <Link href="/positions" className="text-blue-600 hover:underline">
                   → 查看持仓
                 </Link>
-                <Link 
-                  href="/" 
-                  className="text-blue-600 hover:underline"
-                >
+                <Link href="/" className="text-blue-600 hover:underline">
                   → 账户概览
                 </Link>
               </div>
@@ -277,7 +222,7 @@ export default function SyncData() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </Layout>
+    </AuthGuard>
   );
 }

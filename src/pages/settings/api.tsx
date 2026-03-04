@@ -1,10 +1,12 @@
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import Layout from '@/components/Layout';
+import AuthGuard from '@/components/AuthGuard';
 
 export default function ApiSettings() {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const router = useRouter();
   const [formData, setFormData] = useState({
     apiKey: '',
@@ -52,7 +54,7 @@ export default function ApiSettings() {
         setMessage({ type: 'success', text: 'API 密钥保存成功！正在跳转到数据同步...' });
         setFormData({ apiKey: '', apiSecret: '' });
         setHasExistingApi(true);
-        
+
         // 1.5秒后跳转到同步页面并自动开始同步
         setTimeout(() => {
           router.push('/settings/sync?auto=true');
@@ -93,56 +95,9 @@ export default function ApiSettings() {
     }
   };
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    router.push('/auth/signin');
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="text-2xl font-bold text-gray-900 hover:text-blue-600">
-              Followin Tradehub
-            </Link>
-            <nav className="flex gap-4">
-              <Link href="/" className="text-gray-600 hover:text-gray-900">
-                概览
-              </Link>
-              <Link href="/positions" className="text-gray-600 hover:text-gray-900">
-                持仓
-              </Link>
-              <Link href="/news" className="text-gray-600 hover:text-gray-900">
-                快讯
-              </Link>
-              <Link href="/settings/api" className="text-blue-600 font-semibold">
-                API设置
-              </Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">{session.user?.email}</span>
-            <button
-              onClick={() => signOut()}
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              退出
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <AuthGuard message="登录管理您的 API 配置">
+      <Layout maxWidth="max-w-3xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">币安 API 配置</h1>
           <p className="text-gray-600">配置您的币安 API 密钥以同步交易数据</p>
@@ -187,8 +142,8 @@ export default function ApiSettings() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {message.text && (
               <div className={`p-4 rounded ${
-                message.type === 'success' 
-                  ? 'bg-green-50 border border-green-200 text-green-600' 
+                message.type === 'success'
+                  ? 'bg-green-50 border border-green-200 text-green-600'
                   : 'bg-red-50 border border-red-200 text-red-600'
               }`}>
                 {message.text}
@@ -256,22 +211,22 @@ export default function ApiSettings() {
           <h2 className="text-lg font-semibold mb-4">如何获取币安 API 密钥？</h2>
           <ol className="list-decimal list-inside space-y-3 text-sm text-gray-700">
             <li>登录币安账户，访问 <a href="https://www.binance.com/zh-CN/my/settings/api-management" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">API 管理页面</a></li>
-            <li>点击"创建 API"按钮</li>
-            <li>输入 API 标签名称（例如："Trading Dashboard"）</li>
+            <li>点击&ldquo;创建 API&rdquo;按钮</li>
+            <li>输入 API 标签名称（例如：&ldquo;Trading Dashboard&rdquo;）</li>
             <li>完成安全验证（邮箱/手机验证）</li>
             <li>
-              <strong>重要：</strong>只勾选"启用读取"权限
+              <strong>重要：</strong>只勾选&ldquo;启用读取&rdquo;权限
               <ul className="list-disc list-inside ml-6 mt-2 space-y-1 text-gray-600">
-                <li>✅ 启用读取</li>
-                <li>❌ 不要启用交易</li>
-                <li>❌ 不要启用提现</li>
+                <li>启用读取</li>
+                <li>不要启用交易</li>
+                <li>不要启用提现</li>
               </ul>
             </li>
             <li>复制 API Key 和 Secret Key</li>
             <li>将密钥粘贴到上面的表单中</li>
           </ol>
         </div>
-      </main>
-    </div>
+      </Layout>
+    </AuthGuard>
   );
 }

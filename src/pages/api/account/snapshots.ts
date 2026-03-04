@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { prisma } from '@/lib/prisma';
 import { subMonths, subYears, format } from 'date-fns';
+import { snapshotRangeFilter } from '@/lib/validations';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -16,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const userId = session.user.id;
-    const { range = 'all' } = req.query;
+    const range = snapshotRangeFilter.parse(req.query.range);
 
     // Calculate date range
     let startDate: Date | undefined;

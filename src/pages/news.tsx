@@ -1,6 +1,5 @@
-import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import Layout from '@/components/Layout';
 
 interface NewsTag {
   id: number;
@@ -28,7 +27,6 @@ interface NewsItem {
 }
 
 export default function News() {
-  const { data: session, status } = useSession();
   const [newsList, setNewsList] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -72,7 +70,7 @@ export default function News() {
   // 自动刷新（每60秒）
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchNews(); // 刷新最新快讯
+      fetchNews();
     }, 60000);
     return () => clearInterval(interval);
   }, [fetchNews]);
@@ -90,13 +88,13 @@ export default function News() {
     const now = Date.now();
     const diff = now - timestamp;
     const minutes = Math.floor(diff / 60000);
-    
+
     if (minutes < 1) return '刚刚';
     if (minutes < 60) return `${minutes}分钟前`;
-    
+
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `${hours}小时前`;
-    
+
     const date = new Date(timestamp);
     return `${date.getMonth() + 1}月${date.getDate()}日 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
@@ -110,54 +108,10 @@ export default function News() {
     return 'text-gray-500';
   };
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-[#0a1a1f] to-[#1a2f35]">
-        <h1 className="text-4xl font-bold text-white">Followin Tradehub</h1>
-        <p className="text-gray-300">登录查看加密快讯</p>
-        <div className="flex gap-4">
-          <Link href="/auth/signin" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
-            登录
-          </Link>
-          <Link href="/auth/register" className="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-300 transition">
-            注册
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="text-2xl font-bold text-gray-900 hover:text-blue-600">
-              Followin Tradehub
-            </Link>
-            <nav className="flex gap-4">
-              <Link href="/" className="text-gray-600 hover:text-gray-900">概览</Link>
-              <Link href="/positions" className="text-gray-600 hover:text-gray-900">持仓</Link>
-              <Link href="/news" className="text-blue-600 font-semibold">快讯</Link>
-              <Link href="/settings/api" className="text-gray-600 hover:text-gray-900">API设置</Link>
-            </nav>
-          </div>
-          <span className="text-sm text-gray-600">{session.user?.email}</span>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <Layout maxWidth="max-w-3xl">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">📰 加密快讯</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">加密快讯</h1>
           <p className="text-gray-600">实时追踪加密货币行业最新动态</p>
         </div>
 
@@ -287,7 +241,6 @@ export default function News() {
             )}
           </div>
         )}
-      </main>
-    </div>
+    </Layout>
   );
 }

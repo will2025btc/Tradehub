@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import { prisma } from '@/lib/prisma';
 import { encryptApiKey, decryptApiKey } from '@/lib/encryption';
+import { apiConfigInput } from '@/lib/validations';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -33,11 +34,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // POST - 保存或更新API配置
   if (req.method === 'POST') {
     try {
-      const { apiKey, apiSecret } = req.body;
-
-      if (!apiKey || !apiSecret) {
-        return res.status(400).json({ message: 'API Key 和 Secret 不能为空' });
+      const parsed = apiConfigInput.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: parsed.error.errors[0]?.message || 'API Key 和 Secret 不能为空',
+        });
       }
+      const { apiKey, apiSecret } = parsed.data;
 
       // 加密API密钥
       const encryptedKey = encryptApiKey(apiKey);

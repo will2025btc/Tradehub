@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+import { positionStatusFilter } from '@/lib/validations';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -15,10 +17,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const userId = session.user.id;
-    const { status = 'all' } = req.query;
+    const status = positionStatusFilter.parse(req.query.status);
 
-    const whereClause: any = { userId };
-    
+    const whereClause: Prisma.PositionWhereInput = { userId };
+
     if (status === 'open') {
       whereClause.status = 'OPEN';
     } else if (status === 'closed') {
