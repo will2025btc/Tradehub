@@ -17,6 +17,7 @@ export interface SyncResult {
   tradesCount: number;
   positionsCount: number;
   accountBalance: number;
+  transfersCount: number;
 }
 
 interface AggregatedPosition {
@@ -44,7 +45,13 @@ export async function syncUserData(config: SyncConfig): Promise<SyncResult> {
   const apiSecret = decryptApiKey(config.apiSecretEncrypted);
   const binanceClient = new BinanceAPIClient(apiKey, apiSecret);
 
-  // 1. 获取账户信息并创建快照
+  // 1. 同步出入金记录
+  const transfersCount = await syncTransfers(binanceClient, config.userId);
+
+  // 2. 计算累计净出入金金额
+  const netTransfer = await calculateNetTransfer(config.userId);
+
+  // 3. 获取账户信息并创建快照（包含净出入金）
   const accountInfo = await binanceClient.getAccountInfo();
   await prisma.accountSnapshot.create({
     data: {
@@ -52,17 +59,18 @@ export async function syncUserData(config: SyncConfig): Promise<SyncResult> {
       balance: parseFloat(accountInfo.totalWalletBalance),
       unrealizedPnl: parseFloat(accountInfo.totalUnrealizedProfit),
       totalEquity: parseFloat(accountInfo.totalMarginBalance),
+      netTransfer,
       snapshotTime: new Date(),
     },
   });
 
-  // 2. 并行获取当前持仓 + 历史订单
+  // 4. 并行获取当前持仓 + 历史订单
   const [currentPositions, ordersMap] = await Promise.all([
     binanceClient.getPositionRisk(),
     binanceClient.getAllOrdersForAllSymbols(config.syncDays),
   ]);
 
-  // 3. 处理每个交易对的订单
+  // 5. 处理每个交易对的订单
   let totalTrades = 0;
   let totalPositions = 0;
 
@@ -139,19 +147,85 @@ export async function syncUserData(config: SyncConfig): Promise<SyncResult> {
     }
   }
 
-  // 4. 更新最后同步时间
+  // 6. 更新最后同步时间
   await prisma.apiConfig.update({
     where: { id: config.apiConfigId },
     data: { lastSyncAt: new Date() },
   });
 
-  console.log(`同步完成: ${totalTrades} 笔交易, ${totalPositions} 个持仓`);
+  console.log(`同步完成: ${totalTrades} 笔交易, ${totalPositions} 个持仓, ${transfersCount} 笔出入金`);
 
   return {
     tradesCount: totalTrades,
     positionsCount: totalPositions,
     accountBalance: parseFloat(accountInfo.totalWalletBalance),
+    transfersCount,
   };
+}
+
+// ---- Transfer sync functions ----
+
+/**
+ * 同步出入金记录
+ * 从 Binance 获取 TRANSFER 类型的 income 记录并存储
+ * TRANSFER income: 正数=转入(入金), 负数=转出(出金)
+ */
+async function syncTransfers(
+  binanceClient: BinanceAPIClient,
+  userId: string
+): Promise<number> {
+  // 获取最后一条已同步的转账记录的时间，避免重复拉取
+  const lastTransfer = await prisma.transfer.findFirst({
+    where: { userId },
+    orderBy: { time: 'desc' },
+  });
+
+  const startTime = lastTransfer
+    ? lastTransfer.time.getTime() + 1  // 从最后一条之后开始
+    : undefined;                        // 首次同步：拉取所有
+
+  const transfers = await binanceClient.getAllTransfers(startTime);
+
+  if (transfers.length === 0) return 0;
+
+  // 批量创建，skipDuplicates 防止重复
+  const transferData = transfers.map(t => ({
+    userId,
+    binanceTransId: t.tranId.toString(),
+    type: parseFloat(t.income) >= 0 ? 'DEPOSIT' : 'WITHDRAWAL',
+    amount: Math.abs(parseFloat(t.income)),
+    asset: t.asset || 'USDT',
+    time: new Date(t.time),
+  }));
+
+  const result = await prisma.transfer.createMany({
+    data: transferData,
+    skipDuplicates: true,
+  });
+
+  console.log(`同步出入金: ${result.count} 笔新记录 (共获取 ${transfers.length} 笔)`);
+  return result.count;
+}
+
+/**
+ * 计算用户的累计净出入金金额
+ * 净出入金 = 总入金 - 总出金
+ */
+async function calculateNetTransfer(userId: string): Promise<number> {
+  const deposits = await prisma.transfer.aggregate({
+    where: { userId, type: 'DEPOSIT' },
+    _sum: { amount: true },
+  });
+
+  const withdrawals = await prisma.transfer.aggregate({
+    where: { userId, type: 'WITHDRAWAL' },
+    _sum: { amount: true },
+  });
+
+  const totalDeposits = Number(deposits._sum.amount || 0);
+  const totalWithdrawals = Number(withdrawals._sum.amount || 0);
+
+  return totalDeposits - totalWithdrawals;
 }
 
 // ---- Position aggregation functions ----

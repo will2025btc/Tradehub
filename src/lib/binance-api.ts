@@ -43,6 +43,17 @@ export interface BinancePosition {
   updateTime: number;
 }
 
+export interface BinanceIncome {
+  symbol: string;
+  incomeType: string;  // TRANSFER, REALIZED_PNL, FUNDING_FEE, COMMISSION, etc.
+  income: string;      // positive = inflow, negative = outflow
+  asset: string;
+  info: string;
+  time: number;
+  tranId: number;
+  tradeId: string;
+}
+
 export interface BinanceAccountInfo {
   feeTier: number;
   canTrade: boolean;
@@ -289,5 +300,65 @@ export class BinanceAPIClient {
     if (endTime) params.endTime = endTime;
 
     return this.makeRequest<BinanceOrder[]>('/fapi/v1/userTrades', params);
+  }
+
+  /**
+   * 获取收入历史（用于追踪出入金/资金费率等）
+   * @param incomeType 收入类型：TRANSFER, REALIZED_PNL, FUNDING_FEE, COMMISSION 等
+   * @param startTime 开始时间戳
+   * @param endTime 结束时间戳
+   * @param limit 返回数量，最大1000
+   */
+  async getIncomeHistory(
+    incomeType?: string,
+    startTime?: number,
+    endTime?: number,
+    limit: number = 1000
+  ): Promise<BinanceIncome[]> {
+    const params: Record<string, string | number> = { limit };
+    if (incomeType) params.incomeType = incomeType;
+    if (startTime) params.startTime = startTime;
+    if (endTime) params.endTime = endTime;
+
+    return this.fetchWithRetry(
+      () => this.makeRequest<BinanceIncome[]>('/fapi/v1/income', params),
+      BINANCE_API_MAX_RETRIES,
+      'getIncomeHistory'
+    );
+  }
+
+  /**
+   * 获取所有出入金记录（自动分页处理，因为API限制最多1000条）
+   * TRANSFER 类型: 正数=转入(入金), 负数=转出(出金)
+   * @param startTime 开始时间戳
+   */
+  async getAllTransfers(startTime?: number): Promise<BinanceIncome[]> {
+    const allTransfers: BinanceIncome[] = [];
+    let currentStartTime = startTime;
+    const now = Date.now();
+
+    while (true) {
+      const transfers = await this.getIncomeHistory(
+        'TRANSFER',
+        currentStartTime,
+        undefined,
+        1000
+      );
+
+      if (transfers.length === 0) break;
+
+      allTransfers.push(...transfers);
+
+      // 如果返回数量小于1000，说明已经没有更多数据
+      if (transfers.length < 1000) break;
+
+      // 用最后一条记录的时间作为下一次查询的起始时间
+      currentStartTime = transfers[transfers.length - 1].time + 1;
+
+      // 安全检查：防止无限循环
+      if (currentStartTime >= now) break;
+    }
+
+    return allTransfers;
   }
 }

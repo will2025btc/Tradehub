@@ -55,16 +55,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const initialCapital = firstSnapshot?.totalEquity ? Number(firstSnapshot.totalEquity) : 0;
+    const initialNetTransfer = firstSnapshot?.netTransfer ? Number(firstSnapshot.netTransfer) : 0;
 
-    // Transform data for chart
+    // Transform data for chart (排除出入金影响)
     const chartData = snapshots.map(snapshot => {
       const equity = Number(snapshot.totalEquity);
-      const returnRate = initialCapital > 0 ? ((equity - initialCapital) / initialCapital) * 100 : 0;
+      const netTransfer = Number(snapshot.netTransfer || 0);
+
+      // 调整后权益 = 实际权益 - 期间净出入金变化
+      const netTransferDelta = netTransfer - initialNetTransfer;
+      const adjustedEquity = equity - netTransferDelta;
+
+      const returnRate = initialCapital > 0 ? ((adjustedEquity - initialCapital) / initialCapital) * 100 : 0;
 
       return {
         date: format(snapshot.snapshotTime, 'yyyy-MM-dd'),
         returnRate: Number(returnRate.toFixed(2)),
-        equity: Number(equity.toFixed(2)),
+        equity: Number(adjustedEquity.toFixed(2)),
       };
     });
 

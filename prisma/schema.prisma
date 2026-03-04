@@ -20,11 +20,12 @@ model User {
   verificationToken String?         @unique @map("verification_token")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
-  
+
   apiConfigs      ApiConfig[]
   positions       Position[]
   trades          Trade[]
   accountSnapshots AccountSnapshot[]
+  transfers       Transfer[]
 
   @@map("users")
 }
@@ -100,15 +101,32 @@ model Trade {
 model AccountSnapshot {
   id             String   @id @default(uuid())
   userId         String   @map("user_id")
-  balance        Decimal 
+  balance        Decimal
   unrealizedPnl  Decimal  @map("unrealized_pnl")
   totalEquity    Decimal  @map("total_equity")
+  netTransfer    Decimal  @default(0) @map("net_transfer")  // 累计净出入金金额（正=净入金，负=净出金）
   snapshotTime   DateTime @map("snapshot_time")
   createdAt      DateTime @default(now()) @map("created_at")
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, snapshotTime])
   @@index([userId, snapshotTime])
   @@map("account_snapshots")
+}
+
+model Transfer {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  binanceTransId  String   @unique @map("binance_trans_id")  // Binance tranId，防止重复
+  type            String   // DEPOSIT 或 WITHDRAWAL
+  amount          Decimal  // 绝对值金额
+  asset           String   @default("USDT")
+  time            DateTime
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, time])
+  @@map("transfers")
 }

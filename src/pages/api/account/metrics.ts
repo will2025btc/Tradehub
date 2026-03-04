@@ -47,22 +47,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    // Calculate metrics
+    // Calculate metrics (排除出入金影响)
     const accountAsset = latestSnapshot?.totalEquity ? Number(latestSnapshot.totalEquity) : 0;
     const initialCapital = firstSnapshot?.totalEquity ? Number(firstSnapshot.totalEquity) : accountAsset;
-    const totalProfit = accountAsset - initialCapital;
+
+    // 获取净出入金差额，从总收益中扣除
+    const currentNetTransfer = latestSnapshot?.netTransfer ? Number(latestSnapshot.netTransfer) : 0;
+    const initialNetTransfer = firstSnapshot?.netTransfer ? Number(firstSnapshot.netTransfer) : 0;
+    const netTransferDelta = currentNetTransfer - initialNetTransfer;
+
+    // 真实收益 = (当前权益 - 初始权益) - 期间净出入金
+    const totalProfit = (accountAsset - initialCapital) - netTransferDelta;
+
+    // 调整后的初始资本用于计算收益率（初始资本不受出入金影响）
     const totalReturnRate = initialCapital > 0 ? (totalProfit / initialCapital) * 100 : 0;
 
-    // Monthly return calculation
+    // Monthly return calculation (同样排除出入金)
     const monthStartEquity = monthAgoSnapshot?.totalEquity ? Number(monthAgoSnapshot.totalEquity) : initialCapital;
-    const monthlyProfit = accountAsset - monthStartEquity;
+    const monthStartNetTransfer = monthAgoSnapshot?.netTransfer ? Number(monthAgoSnapshot.netTransfer) : initialNetTransfer;
+    const monthNetTransferDelta = currentNetTransfer - monthStartNetTransfer;
+    const monthlyProfit = (accountAsset - monthStartEquity) - monthNetTransferDelta;
     const monthlyReturnRate = monthStartEquity > 0 ? (monthlyProfit / monthStartEquity) * 100 : 0;
 
     // Win rate calculation
     const winningPositions = closedPositions.filter(p => Number(p.realizedPnl) > 0).length;
     const winRate = closedPositions.length > 0 ? (winningPositions / closedPositions.length) * 100 : 0;
 
-    // Max drawdown calculation
+    // Max drawdown calculation (使用调整后的权益，排除出入金影响)
     const allSnapshots = await prisma.accountSnapshot.findMany({
       where: { userId },
       orderBy: { snapshotTime: 'asc' },
@@ -70,12 +81,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let maxDrawdown = 0;
     let peak = 0;
+    const baseNetTransfer = allSnapshots.length > 0 ? Number(allSnapshots[0].netTransfer) : 0;
     for (const snapshot of allSnapshots) {
-      const equity = Number(snapshot.totalEquity);
-      if (equity > peak) {
-        peak = equity;
+      // 调整后权益 = 实际权益 - 期间净出入金变化
+      const adjustedEquity = Number(snapshot.totalEquity) - (Number(snapshot.netTransfer) - baseNetTransfer);
+      if (adjustedEquity > peak) {
+        peak = adjustedEquity;
       }
-      const drawdown = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
+      const drawdown = peak > 0 ? ((peak - adjustedEquity) / peak) * 100 : 0;
       if (drawdown > maxDrawdown) {
         maxDrawdown = drawdown;
       }
