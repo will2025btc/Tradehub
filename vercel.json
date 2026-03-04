@@ -12,7 +12,7 @@
   "crons": [
     {
       "path": "/api/cron/sync-all",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
