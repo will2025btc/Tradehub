@@ -26,17 +26,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!apiConfig) {
       return res.status(400).json({
-        message: '请先配置币安 API 密钥',
+        message: '请先配置交易所 API 密钥',
         needsConfig: true,
       });
     }
 
-    console.log('开始同步数据...');
+    console.log(`开始同步数据 [${apiConfig.exchange}]...`);
 
     const result = await syncUserData({
       userId,
+      exchange: apiConfig.exchange,
       apiKeyEncrypted: apiConfig.apiKeyEncrypted,
       apiSecretEncrypted: apiConfig.apiSecretEncrypted,
+      passphraseEncrypted: apiConfig.passphraseEncrypted,
       apiConfigId: apiConfig.id,
       syncDays: MANUAL_SYNC_DAYS,
     });

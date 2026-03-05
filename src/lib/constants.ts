@@ -12,3 +12,9 @@ export const BINANCE_API_CONCURRENCY = 5;
 
 /** Max retries for failed Binance API calls */
 export const BINANCE_API_MAX_RETRIES = 3;
+
+/** Concurrency limit for parallel OKX API requests */
+export const OKX_API_CONCURRENCY = 3;
+
+/** Max retries for failed OKX API calls */
+export const OKX_API_MAX_RETRIES = 3;

@@ -32,13 +32,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         await syncUserData({
           userId: config.userId,
+          exchange: config.exchange,
           apiKeyEncrypted: config.apiKeyEncrypted,
           apiSecretEncrypted: config.apiSecretEncrypted,
+          passphraseEncrypted: config.passphraseEncrypted,
           apiConfigId: config.id,
           syncDays: CRON_SYNC_DAYS,
         });
         successCount++;
-        console.log(`[Cron] ✅ 用户 ${config.user.email} 同步成功`);
+        console.log(`[Cron] ✅ 用户 ${config.user.email} [${config.exchange}] 同步成功`);
       } catch (error) {
         failCount++;
         console.error(`[Cron] ❌ 用户 ${config.user.email} 同步失败:`, error);

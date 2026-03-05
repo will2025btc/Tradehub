@@ -4,17 +4,19 @@ import { authOptions } from '../auth/[...nextauth]';
 import { prisma } from '@/lib/prisma';
 import { encryptApiKey, decryptApiKey } from '@/lib/encryption';
 import { apiConfigInput } from '@/lib/validations';
+import { BinanceAPIClient } from '@/lib/binance-api';
+import { OKXAPIClient } from '@/lib/okx-api';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
-  
+
   if (!session?.user?.id) {
     return res.status(401).json({ message: '未授权' });
   }
 
   const userId = session.user.id;
 
-  // GET - 检查是否已有API配置
+  // GET - 检查是否已有 API 配置
   if (req.method === 'GET') {
     try {
       const apiConfig = await prisma.apiConfig.findFirst({
@@ -24,6 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({
         hasApi: !!apiConfig,
         isActive: apiConfig?.isActive || false,
+        exchange: apiConfig?.exchange || 'binance',
       });
     } catch (error) {
       console.error('获取API配置失败:', error);
@@ -31,62 +34,78 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  // POST - 保存或更新API配置
+  // POST - 保存或更新 API 配置
   if (req.method === 'POST') {
     try {
       const parsed = apiConfigInput.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({
-          message: parsed.error.errors[0]?.message || 'API Key 和 Secret 不能为空',
+          message: parsed.error.errors[0]?.message || 'API 参数不能为空',
         });
       }
-      const { apiKey, apiSecret } = parsed.data;
 
-      // 加密API密钥
+      const { exchange, apiKey, apiSecret, passphrase } = parsed.data;
+
+      // OKX 必须提供 passphrase
+      if (exchange === 'okx' && !passphrase) {
+        return res.status(400).json({ message: 'OKX 需要填写 Passphrase' });
+      }
+
+      // 连接测试
+      try {
+        if (exchange === 'binance') {
+          const client = new BinanceAPIClient(apiKey, apiSecret);
+          await client.getAccountInfo();
+        } else if (exchange === 'okx') {
+          const client = new OKXAPIClient(apiKey, apiSecret, passphrase!);
+          const test = await client.testConnection();
+          if (!test.success) {
+            return res.status(400).json({ message: `OKX API 连接失败: ${test.message}` });
+          }
+        }
+      } catch (testErr) {
+        const msg = testErr instanceof Error ? testErr.message : 'API 连接测试失败';
+        return res.status(400).json({ message: `API 连接测试失败: ${msg}` });
+      }
+
+      // 加密密钥
       const encryptedKey = encryptApiKey(apiKey);
       const encryptedSecret = encryptApiKey(apiSecret);
+      const encryptedPassphrase = passphrase ? encryptApiKey(passphrase) : null;
 
-      // 检查是否已存在配置
       const existingConfig = await prisma.apiConfig.findFirst({
         where: { userId },
       });
 
       if (existingConfig) {
-        // 更新现有配置
         await prisma.apiConfig.update({
           where: { id: existingConfig.id },
           data: {
+            exchange,
             apiKeyEncrypted: encryptedKey,
             apiSecretEncrypted: encryptedSecret,
+            passphraseEncrypted: encryptedPassphrase,
             isActive: true,
             updatedAt: new Date(),
           },
         });
       } else {
-        // 创建新配置
         await prisma.apiConfig.create({
           data: {
             userId,
-            exchange: 'binance',
+            exchange,
             apiKeyEncrypted: encryptedKey,
             apiSecretEncrypted: encryptedSecret,
+            passphraseEncrypted: encryptedPassphrase,
             isActive: true,
           },
         });
       }
 
-      // 保存成功后，自动触发数据同步
-      try {
-        // 这里可以触发后台任务或直接同步
-        console.log('API配置已保存，准备同步数据...');
-      } catch (syncError) {
-        console.error('自动同步失败:', syncError);
-      }
-
-      return res.status(200).json({ 
-        message: 'API 配置保存成功，正在同步数据...',
+      return res.status(200).json({
+        message: `${exchange === 'okx' ? 'OKX' : '币安'} API 配置保存成功，正在同步数据...`,
         success: true,
-        shouldSync: true  // 告诉前端需要同步
+        shouldSync: true,
       });
     } catch (error) {
       console.error('保存API配置失败:', error);
@@ -94,7 +113,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  // DELETE - 删除API配置
+  // DELETE - 删除 API 配置
   if (req.method === 'DELETE') {
     try {
       const apiConfig = await prisma.apiConfig.findFirst({
@@ -109,9 +128,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where: { id: apiConfig.id },
       });
 
-      return res.status(200).json({ 
+      return res.status(200).json({
         message: 'API 配置已删除',
-        success: true 
+        success: true,
       });
     } catch (error) {
       console.error('删除API配置失败:', error);

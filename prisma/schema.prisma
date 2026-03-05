@@ -31,16 +31,17 @@ model User {
 }
 
 model ApiConfig {
-  id                 String    @id @default(uuid())
-  userId             String    @map("user_id")
-  exchange           String    @default("binance")
-  apiKeyEncrypted    String    @map("api_key_encrypted")
-  apiSecretEncrypted String    @map("api_secret_encrypted")
-  isActive           Boolean   @default(true) @map("is_active")
-  lastSyncAt         DateTime? @map("last_sync_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
-  
+  id                    String    @id @default(uuid())
+  userId                String    @map("user_id")
+  exchange              String    @default("binance")  // "binance" | "okx"
+  apiKeyEncrypted       String    @map("api_key_encrypted")
+  apiSecretEncrypted    String    @map("api_secret_encrypted")
+  passphraseEncrypted   String?   @map("passphrase_encrypted")  // OKX 专用
+  isActive              Boolean   @default(true) @map("is_active")
+  lastSyncAt            DateTime? @map("last_sync_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("api_configs")
@@ -49,6 +50,7 @@ model ApiConfig {
 model Position {
   id             String    @id @default(uuid())
   userId         String    @map("user_id")
+  exchange       String    @default("binance")  // "binance" | "okx"
   symbol         String
   side           String    // 'LONG' or 'SHORT'
   leverage       Int
@@ -57,7 +59,7 @@ model Position {
   closeTime      DateTime? @map("close_time")
   avgOpenPrice   Decimal   @map("avg_open_price")
   avgClosePrice  Decimal?  @map("avg_close_price")
-  quantity       Decimal  
+  quantity       Decimal
   maxQuantity    Decimal   @map("max_quantity")
   maxPositionValue Decimal @map("max_position_value")
   maxMargin      Decimal   @map("max_margin")
@@ -65,7 +67,7 @@ model Position {
   fee            Decimal   @default(0)
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
-  
+
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   trades Trade[]
 
@@ -78,21 +80,23 @@ model Trade {
   id              String   @id @default(uuid())
   positionId      String?  @map("position_id")
   userId          String   @map("user_id")
-  binanceOrderId  String   @unique @map("binance_order_id")
+  exchange        String   @default("binance")          // "binance" | "okx"
+  exchangeOrderId String   @map("exchange_order_id")    // 原 binance_order_id，兼容两家交易所
   symbol          String
   side            String   // 'BUY' or 'SELL'
-  positionSide    String   @map("position_side") // 'LONG' or 'SHORT'
-  orderType       String   @map("order_type") // 'LIMIT', 'MARKET', etc.
-  quantity        Decimal 
-  price           Decimal 
-  fee             Decimal 
+  positionSide    String   @map("position_side")        // 'LONG' or 'SHORT'
+  orderType       String   @map("order_type")           // 'LIMIT', 'MARKET', etc.
+  quantity        Decimal
+  price           Decimal
+  fee             Decimal
   realizedPnl     Decimal  @default(0) @map("realized_pnl")
   time            DateTime
   createdAt       DateTime @default(now()) @map("created_at")
-  
+
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   position Position? @relation(fields: [positionId], references: [id], onDelete: SetNull)
 
+  @@unique([exchangeOrderId, exchange])   // 复合唯一：同一交易所同一订单ID不重复
   @@index([userId, time])
   @@index([symbol])
   @@map("trades")
@@ -118,7 +122,8 @@ model AccountSnapshot {
 model Transfer {
   id              String   @id @default(uuid())
   userId          String   @map("user_id")
-  binanceTransId  String   @unique @map("binance_trans_id")  // Binance tranId，防止重复
+  exchange        String   @default("binance")          // "binance" | "okx"
+  exchangeTransId String   @map("exchange_trans_id")    // 原 binance_trans_id，兼容两家交易所
   type            String   // DEPOSIT 或 WITHDRAWAL
   amount          Decimal  // 绝对值金额
   asset           String   @default("USDT")
@@ -127,6 +132,7 @@ model Transfer {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([exchangeTransId, exchange])   // 复合唯一：同一交易所同一转账ID不重复
   @@index([userId, time])
   @@map("transfers")
 }
