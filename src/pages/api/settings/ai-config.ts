@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { provider, model, apiKey, baseUrl, skipTest } = req.body as {
       provider: AiProvider;
       model:    string;
-      apiKey:   string;
+      apiKey?:  string;   // 可选：留空则沿用已有 key
       baseUrl?: string;
       skipTest?: boolean;
     };
@@ -46,33 +46,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ message: `不支持的 provider: ${provider}` });
     }
     if (!model?.trim()) {
-      return res.status(400).json({ message: '请选择或填写模型名称' });
-    }
-    if (!apiKey?.trim()) {
-      return res.status(400).json({ message: 'API Key 不能为空' });
+      return res.status(400).json({ message: '请输入模型名称' });
     }
     if (provider === 'custom' && !baseUrl?.trim()) {
       return res.status(400).json({ message: '自定义模型需要填写 Base URL' });
     }
 
+    // 读取已有配置（用于沿用旧 key）
+    const existing = await prisma.aiConfig.findUnique({ where: { userId } });
+
+    // apiKey 留空时沿用旧 key，否则必须存在旧配置或新填 key
+    const newKeyRaw = apiKey?.trim();
+    if (!newKeyRaw && !existing) {
+      return res.status(400).json({ message: 'API Key 不能为空' });
+    }
+    const encryptedKey = newKeyRaw ? encryptApiKey(newKeyRaw) : existing!.apiKeyEncrypted;
+    const decryptedKey = newKeyRaw ?? decryptApiKey(existing!.apiKeyEncrypted);
+
     // 可选的连接测试
     if (!skipTest) {
-      const testResult = await testAIConnection({ provider, model, apiKey, baseUrl });
+      const testResult = await testAIConnection({
+        provider, model: model.trim(), apiKey: decryptedKey, baseUrl,
+      });
       if (!testResult.ok) {
         return res.status(400).json({ message: testResult.message });
       }
     }
 
-    // 加密保存
-    const encryptedKey = encryptApiKey(apiKey);
-
     await prisma.aiConfig.upsert({
       where:  { userId },
-      update: { provider, model, apiKeyEncrypted: encryptedKey, baseUrl: baseUrl ?? null },
-      create: { userId, provider, model, apiKeyEncrypted: encryptedKey, baseUrl: baseUrl ?? null },
+      update: { provider, model: model.trim(), apiKeyEncrypted: encryptedKey, baseUrl: baseUrl?.trim() ?? null },
+      create: { userId, provider, model: model.trim(), apiKeyEncrypted: encryptedKey, baseUrl: baseUrl?.trim() ?? null },
     });
 
-    return res.status(200).json({ message: 'AI 模型配置保存成功', success: true });
+    return res.status(200).json({
+      message: `已保存：${provider} / ${model.trim()}`,
+      success: true,
+    });
   }
 
   // ── DELETE：删除 AI 配置 ───────────────────────────────────────────────

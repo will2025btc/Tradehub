@@ -40,14 +40,38 @@ export const PROVIDER_LABELS: Record<AiProvider, string> = {
   custom:    '自定义模型',
 };
 
+// 常用模型快捷选项（仅供参考，用户可自由输入任何模型名）
 export const PROVIDER_MODELS: Record<AiProvider, string[]> = {
-  openai:    ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o3-mini'],
-  anthropic: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
-  google:    ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-  deepseek:  ['deepseek-chat', 'deepseek-reasoner'],
-  qwen:      ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'],
-  zhipu:     ['glm-4', 'glm-4-flash', 'glm-4-air', 'glm-3-turbo'],
-  custom:    [],
+  openai: [
+    'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
+    'gpt-4o', 'gpt-4o-mini',
+    'o3', 'o3-mini', 'o4-mini', 'o1', 'o1-mini',
+    'gpt-5', 'gpt-5.4',
+  ],
+  anthropic: [
+    'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5',
+    'claude-opus-4-5', 'claude-sonnet-4-5',
+  ],
+  google: [
+    'gemini-2.5-pro', 'gemini-2.5-flash',
+    'gemini-2.0-flash', 'gemini-2.0-flash-lite',
+    'gemini-1.5-pro', 'gemini-1.5-flash',
+    'gemini-3.1-pro',
+  ],
+  deepseek: [
+    'deepseek-chat', 'deepseek-reasoner',
+    'deepseek-r1', 'deepseek-v3',
+    'deepseek-r1-0528',
+  ],
+  qwen: [
+    'qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long',
+    'qwen3-235b-a22b', 'qwen2.5-72b-instruct', 'qwq-32b',
+  ],
+  zhipu: [
+    'glm-4-plus', 'glm-4', 'glm-4-flash', 'glm-4-air',
+    'glm-z1-preview', 'glm-z1-flash',
+  ],
+  custom: [],
 };
 
 // 各 OpenAI 兼容厂商的 baseURL
