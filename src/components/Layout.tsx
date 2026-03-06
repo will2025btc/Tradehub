@@ -11,8 +11,10 @@ interface LayoutProps {
 const NAV_ITEMS = [
   { href: '/', label: '概览' },
   { href: '/positions', label: '持仓' },
+  { href: '/review', label: '每日复盘' },
   { href: '/news', label: '快讯' },
-  { href: '/settings/api', label: 'API设置' },
+  { href: '/settings/api', label: '交易所' },
+  { href: '/settings/ai', label: 'AI设置' },
 ];
 
 export default function Layout({ children, maxWidth = 'max-w-7xl' }: LayoutProps) {

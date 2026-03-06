@@ -26,6 +26,8 @@ model User {
   trades          Trade[]
   accountSnapshots AccountSnapshot[]
   transfers       Transfer[]
+  dailyReviews    DailyReview[]
+  aiConfig        AiConfig?
 
   @@map("users")
 }
@@ -135,4 +137,36 @@ model Transfer {
   @@unique([exchangeTransId, exchange])   // 复合唯一：同一交易所同一转账ID不重复
   @@index([userId, time])
   @@map("transfers")
+}
+
+model AiConfig {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  provider        String   @default("anthropic")     // openai | anthropic | google | deepseek | qwen | zhipu | custom
+  model           String   @default("claude-opus-4-6")
+  apiKeyEncrypted String   @map("api_key_encrypted")
+  baseUrl         String?  @map("base_url")          // 仅 custom provider 需要填写
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ai_configs_review")
+}
+
+model DailyReview {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  date        String   // YYYY-MM-DD，每用户每天唯一
+  aiReview    String   @map("ai_review") @db.Text  // Claude 生成的完整复盘内容
+  posCount    Int      @default(0) @map("pos_count")  // 当日持仓数
+  totalPnl    Decimal  @default(0) @map("total_pnl")  // 当日净盈亏
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("daily_reviews")
 }

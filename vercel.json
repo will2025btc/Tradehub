@@ -1,11 +1,17 @@
 {
-  "buildCommand": "prisma generate && next build",
+  "buildCommand": "prisma generate && prisma migrate deploy && next build",
   "devCommand": "next dev",
   "installCommand": "npm install",
   "framework": "nextjs",
   "functions": {
     "src/pages/api/**/*.ts": {
       "maxDuration": 60
+    },
+    "src/pages/api/review/generate.ts": {
+      "maxDuration": 300
+    },
+    "src/pages/api/cron/daily-review.ts": {
+      "maxDuration": 300
     }
   },
   "regions": ["hkg1"],
@@ -13,6 +19,10 @@
     {
       "path": "/api/cron/sync-all",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/daily-review",
+      "schedule": "0 1 * * *"
     }
   ]
 }

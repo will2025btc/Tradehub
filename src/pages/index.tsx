@@ -144,8 +144,9 @@ export default function Home() {
         </div>
 
         {/* Quick Actions */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
           <ActionCard title="查看持仓" description="查看当前和历史持仓记录" href="/positions" />
+          <ActionCard title="每日复盘" description="AI 深度分析今日交易，给出真诚建议" href="/review" highlight />
           <ActionCard title="配置API" description="设置或更新币安API密钥" href="/settings/api" />
           <ActionCard title="同步数据" description="手动触发数据同步" href="/settings/sync" />
         </div>
@@ -163,11 +164,18 @@ function MetricCard({ title, value, valueClass = '' }: { title: string; value: s
   );
 }
 
-function ActionCard({ title, description, href }: { title: string; description: string; href: string }) {
+function ActionCard({ title, description, href, highlight = false }: { title: string; description: string; href: string; highlight?: boolean }) {
   return (
-    <Link href={href} className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition cursor-pointer block">
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-sm text-gray-600">{description}</p>
+    <Link
+      href={href}
+      className={`p-6 rounded-lg shadow-sm hover:shadow-md transition cursor-pointer block ${
+        highlight
+          ? 'bg-blue-600 text-white hover:bg-blue-700'
+          : 'bg-white'
+      }`}
+    >
+      <h3 className={`text-lg font-semibold mb-2 ${highlight ? 'text-white' : ''}`}>{title}</h3>
+      <p className={`text-sm ${highlight ? 'text-blue-100' : 'text-gray-600'}`}>{description}</p>
     </Link>
   );
 }
